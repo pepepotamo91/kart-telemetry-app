@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Gauge ring -->
+    <path
+        android:strokeColor="#FF3D3D"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M 30,74 A 28,28 0 1 1 78,74" />
+    <!-- Needle -->
+    <path
+        android:fillColor="#FFC400"
+        android:pathData="M 54,54 L 74,40 L 60,58 Z" />
+    <!-- Hub -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,50 a 4,4 0 1 1 0,8 a 4,4 0 1 1 0,-8" />
+    <!-- Ticks -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M 30,74 L 34,70 M 78,74 L 74,70 M 54,26 L 54,32" />
+</vector>
