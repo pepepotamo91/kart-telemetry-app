@@ -27,13 +27,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ander.karttelemetry.core.GeoPoint
 import com.ander.karttelemetry.core.TelemetryUiState
 import java.util.Locale
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.min
 
 @Composable
@@ -155,35 +161,75 @@ private fun SpeedPanel(state: TelemetryUiState, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Shows the G-force gauge floating on top of the recorded GPS trajectory, so
+ * the circuit shape and current position are visible without needing a
+ * dedicated panel or a mode switch.
+ */
 @Composable
 private fun GForcePanel(state: TelemetryUiState, modifier: Modifier = Modifier) {
-    PanelBox(modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF111111))
+            .border(1.dp, Color(0xFF2A2A2A), RoundedCornerShape(12.dp)),
+    ) {
+        TrackMap(
+            points = state.trackPoints,
+            current = state.currentPoint,
+            finish = state.finishPoint,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(10.dp),
+        )
+
         if (!state.gAvailable) {
-            Text("Sin sensor de G", color = Color(0xFF999999), fontSize = 16.sp)
+            Text(
+                text = "Sin sensor de G",
+                color = Color(0xFF999999),
+                fontSize = 16.sp,
+                modifier = Modifier.align(Alignment.Center),
+            )
         } else {
-            GForceGauge(state.gLateral, state.gLongitudinal)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Lat %.2fG · Lon %.2fG".format(Locale.US, state.gLateral, state.gLongitudinal),
-                color = Color.White,
-                fontSize = 15.sp,
+            GForceGauge(
+                gLateral = state.gLateral,
+                gLongitudinal = state.gLongitudinal,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(92.dp),
             )
-            Text(
-                text = "MÁX %.2fG lat · %.2fG total".format(Locale.US, state.maxGLateral, state.maxGTotal),
-                color = Color(0xFFFFC400),
-                fontSize = 13.sp,
-            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 6.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF000000).copy(alpha = 0.6f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = "Lat %.2fG · Lon %.2fG".format(Locale.US, state.gLateral, state.gLongitudinal),
+                    color = Color.White,
+                    fontSize = 13.sp,
+                )
+                Text(
+                    text = "MÁX %.2fG lat · %.2fG total".format(Locale.US, state.maxGLateral, state.maxGTotal),
+                    color = Color(0xFFFFC400),
+                    fontSize = 11.sp,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun GForceGauge(gLateral: Double, gLongitudinal: Double) {
+private fun GForceGauge(gLateral: Double, gLongitudinal: Double, modifier: Modifier = Modifier) {
     val maxG = 1.5
-    Canvas(modifier = Modifier.size(140.dp)) {
+    Canvas(modifier = modifier) {
         val radius = size.minDimension / 2f
         val center = Offset(size.width / 2f, size.height / 2f)
-        val gridColor = Color(0xFF2A2A2A)
+        val gridColor = Color(0xFF444B56)
 
         drawCircle(color = gridColor, radius = radius, center = center, style = Stroke(width = 2f))
         drawCircle(color = gridColor, radius = radius * 0.66f, center = center, style = Stroke(width = 2f))
@@ -202,7 +248,71 @@ private fun GForceGauge(gLateral: Double, gLongitudinal: Double) {
             magnitude > 0.33 -> Color(0xFFFFC400)
             else -> Color(0xFF33D17A)
         }
-        drawCircle(color = dotColor, radius = 10f, center = Offset(dotX, dotY))
+        drawCircle(color = dotColor, radius = 9f, center = Offset(dotX, dotY))
+    }
+}
+
+/**
+ * Draws the recorded GPS trail as a flat local projection (equirectangular,
+ * centered on the trail's bounding box) since a full map projection would be
+ * overkill for the few hundred meters a kart track spans.
+ */
+@Composable
+private fun TrackMap(
+    points: List<GeoPoint>,
+    current: GeoPoint?,
+    finish: GeoPoint?,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier) {
+        if (points.size < 2) return@Canvas
+
+        val latMid = (points.maxOf { it.lat } + points.minOf { it.lat }) / 2.0
+        val metersPerDegLat = 110_540.0
+        val metersPerDegLon = 111_320.0 * cos(Math.toRadians(latMid))
+
+        fun toMeters(p: GeoPoint) = Offset(
+            ((p.lon - points[0].lon) * metersPerDegLon).toFloat(),
+            ((p.lat - points[0].lat) * metersPerDegLat).toFloat(),
+        )
+
+        val projected = points.map(::toMeters)
+        val minX = projected.minOf { it.x }
+        val maxX = projected.maxOf { it.x }
+        val minY = projected.minOf { it.y }
+        val maxY = projected.maxOf { it.y }
+        val spanX = (maxX - minX).coerceAtLeast(1f)
+        val spanY = (maxY - minY).coerceAtLeast(1f)
+        val scale = (min(size.width, size.height) * 0.9f) / max(spanX, spanY)
+        val originX = (minX + maxX) / 2f
+        val originY = (minY + maxY) / 2f
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+
+        fun toScreen(m: Offset) = Offset(
+            cx + (m.x - originX) * scale,
+            cy - (m.y - originY) * scale, // screen Y grows downward; track North should point up
+        )
+
+        val path = Path()
+        projected.forEachIndexed { index, m ->
+            val screen = toScreen(m)
+            if (index == 0) path.moveTo(screen.x, screen.y) else path.lineTo(screen.x, screen.y)
+        }
+        drawPath(
+            path = path,
+            color = Color(0xFF3A4048),
+            style = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+
+        finish?.let {
+            drawCircle(Color(0xFFFFC400), radius = 5f, center = toScreen(toMeters(it)))
+        }
+        current?.let {
+            val p = toScreen(toMeters(it))
+            drawCircle(Color(0xFF33D17A).copy(alpha = 0.3f), radius = 13f, center = p)
+            drawCircle(Color(0xFF33D17A), radius = 6f, center = p)
+        }
     }
 }
 

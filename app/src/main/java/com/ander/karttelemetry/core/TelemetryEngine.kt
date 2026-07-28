@@ -64,6 +64,9 @@ class TelemetryEngine(
     private var lastLapMs: Long? = null
     private var bestLapMs: Long? = null
 
+    private val trackPoints = mutableListOf<GeoPoint>()
+    private var trackSnapshot: List<GeoPoint> = emptyList()
+
     fun start() {
         rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
         linearAccelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
@@ -120,6 +123,8 @@ class TelemetryEngine(
         lastLapMs = null
         bestLapMs = null
         lapTracker.reset()
+        trackPoints.clear()
+        trackSnapshot = emptyList()
         sessionStartElapsedMs = SystemClock.elapsedRealtime()
         pushState()
     }
@@ -203,9 +208,33 @@ class TelemetryEngine(
         if (location.hasBearing() && location.hasSpeed() && location.speed > 2.0f) {
             lastBearingDeg = location.bearing
         }
+        recordTrackPoint(location)
         val lapTimeMs = lapTracker.onLocation(location, SystemClock.elapsedRealtime(), sessionStartElapsedMs)
         if (lapTimeMs != null) onLapCompleted(lapTimeMs)
         pushState()
+    }
+
+    private fun recordTrackPoint(location: Location) {
+        val previous = trackPoints.lastOrNull()
+        val distanceM = if (previous != null) {
+            val results = FloatArray(1)
+            Location.distanceBetween(previous.lat, previous.lon, location.latitude, location.longitude, results)
+            results[0]
+        } else {
+            Float.MAX_VALUE
+        }
+        if (distanceM < MIN_TRACK_POINT_DISTANCE_M) return
+
+        trackPoints.add(GeoPoint(location.latitude, location.longitude))
+        if (trackPoints.size > MAX_TRACK_POINTS) {
+            // Halve resolution instead of dropping the oldest points, so the
+            // whole recorded circuit shape stays visible over a long session.
+            val decimated = ArrayList<GeoPoint>(trackPoints.size / 2 + 1)
+            for (i in trackPoints.indices step 2) decimated.add(trackPoints[i])
+            trackPoints.clear()
+            trackPoints.addAll(decimated)
+        }
+        trackSnapshot = trackPoints.toList()
     }
 
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
@@ -233,7 +262,15 @@ class TelemetryEngine(
                 finishLineSet = lapTracker.finishLine != null,
                 isRecording = recorder != null,
                 lastRecordedFileName = recorder?.file?.name,
+                trackPoints = trackSnapshot,
+                currentPoint = lastLocation?.let { GeoPoint(it.latitude, it.longitude) },
+                finishPoint = lapTracker.finishLine?.let { GeoPoint(it.latitude, it.longitude) },
             )
         )
+    }
+
+    private companion object {
+        const val MIN_TRACK_POINT_DISTANCE_M = 2f
+        const val MAX_TRACK_POINTS = 4000
     }
 }

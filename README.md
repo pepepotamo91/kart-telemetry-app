@@ -44,8 +44,10 @@ máquina sí lo tendrá y debería compilar sin cambios.
 
 - **Velocidad**: instantánea (GPS) y velocidad máxima de la sesión.
 - **Fuerza G**: G lateral y longitudinal en tiempo real (relativas a la
-  dirección de marcha, calculadas con el rumbo GPS), más un pequeño
-  "g-meter" circular tipo los de apps de track days, y los picos de la
+  dirección de marcha, calculadas con el rumbo GPS), con un "g-meter"
+  circular superpuesto sobre la trayectoria GPS grabada de la sesión (el
+  trazado del circuito, con un punto verde marcando la posición actual y
+  uno amarillo la línea de meta si la has fijado), y los picos de la
   sesión.
 - **Vueltas**: cronómetro de la vuelta en curso, última vuelta, mejor vuelta
   y número de vueltas. Botón grande "VUELTA" para marcar manualmente.

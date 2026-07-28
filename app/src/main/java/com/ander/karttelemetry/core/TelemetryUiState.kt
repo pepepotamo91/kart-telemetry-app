@@ -18,4 +18,7 @@ data class TelemetryUiState(
     val finishLineSet: Boolean = false,
     val isRecording: Boolean = false,
     val lastRecordedFileName: String? = null,
+    val trackPoints: List<GeoPoint> = emptyList(),
+    val currentPoint: GeoPoint? = null,
+    val finishPoint: GeoPoint? = null,
 )
