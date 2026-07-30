@@ -55,6 +55,26 @@ máquina sí lo tendrá y debería compilar sin cambios.
   móvil (velocidad, G, posición, vuelta), para analizarla después en el
   ordenador.
 
+## Revisión de sesiones grabadas
+
+Botón "Sesiones" en la barra superior del dashboard, para verlo después de
+parar de pilotar:
+
+1. **Lista de sesiones**: los CSV grabados, más recientes primero.
+2. **Detalle de una sesión**: dos gráficas lado a lado, eje X = distancia
+   recorrida (no tiempo), eje Y = magnitud:
+   - Velocidad (km/h).
+   - Fuerza G lateral y longitudinal (dos líneas, con la G lateral máxima
+     en el título).
+   
+   Una línea vertical discontinua marca el final de cada vuelta, para ver
+   de un vistazo dónde se pierde/gana tiempo respecto al resto de la
+   sesión.
+
+La distancia se calcula integrando la velocidad grabada (no el GPS punto a
+punto), porque el GPS actualiza más despacio que la frecuencia de grabación
+y daría una distancia a saltos.
+
 ## Cronometraje automático de vueltas
 
 1. Coloca el kart parado exactamente en la línea de meta.
@@ -90,14 +110,20 @@ ordenador.
 
 ```
 app/src/main/java/com/ander/karttelemetry/
-  MainActivity.kt              actividad única, permisos, pantalla completa
+  MainActivity.kt              actividad única, permisos, navegación entre pantallas
   core/
     TelemetryEngine.kt         sensores + GPS + orquestación del estado
     TelemetryUiState.kt        estado inmutable que consume la UI
     LapTracker.kt              detección de vueltas (manual + por GPS)
     SessionRecorder.kt         escritura del CSV de sesión
+    SessionFileReader.kt       lectura de CSV grabados
+    SessionAnalysis.kt         distancia acumulada + marcas de vuelta para las gráficas
+    GeoPoint.kt / SessionSample.kt   modelos de datos
   ui/
     DashboardScreen.kt         pantalla principal (Compose)
+    SessionsListScreen.kt      listado de sesiones grabadas
+    SessionReviewScreen.kt     gráficas de velocidad/G de una sesión
+    charts/LineChart.kt        gráfica de líneas dibujada a mano (Canvas, sin librerías)
     PermissionScreen.kt        pantalla de solicitud de permiso de ubicación
     theme/Theme.kt             tema oscuro de la app
 ```
@@ -108,3 +134,4 @@ app/src/main/java/com/ander/karttelemetry/
 - Guardar y recuperar varias líneas de meta (varios circuitos).
 - Superposición de vuelta actual vs. mejor vuelta (delta en vivo).
 - Alarma sonora al superar un límite de G o de vueltas.
+- Comparar dos vueltas de la misma sesión superpuestas en las gráficas.

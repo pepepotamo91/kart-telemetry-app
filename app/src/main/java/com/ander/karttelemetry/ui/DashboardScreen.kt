@@ -49,6 +49,7 @@ fun DashboardScreen(
     onSetFinishLine: () -> Unit,
     onManualLap: () -> Unit,
     onResetSession: () -> Unit,
+    onOpenSessions: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -61,6 +62,7 @@ fun DashboardScreen(
             onToggleRecording = onToggleRecording,
             onSetFinishLine = onSetFinishLine,
             onResetSession = onResetSession,
+            onOpenSessions = onOpenSessions,
         )
         Row(
             modifier = Modifier
@@ -82,6 +84,7 @@ private fun TopStatusBar(
     onToggleRecording: () -> Unit,
     onSetFinishLine: () -> Unit,
     onResetSession: () -> Unit,
+    onOpenSessions: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -123,6 +126,9 @@ private fun TopStatusBar(
         }
         TextButton(onClick = onResetSession) {
             Text("Reset", fontSize = 13.sp, color = Color(0xFFFFC400))
+        }
+        TextButton(onClick = onOpenSessions) {
+            Text("Sesiones", fontSize = 13.sp)
         }
     }
 }
