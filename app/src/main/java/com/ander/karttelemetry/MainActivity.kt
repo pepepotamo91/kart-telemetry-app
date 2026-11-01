@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
                             onResetSession = { engine?.resetSession() },
                             onOpenSessions = { screen = Screen.SessionsList },
                             onEnableRpm = { requestMicLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                            onSaveGearing = { engine?.setGearing(it) },
                         )
 
                         Screen.SessionsList -> {
@@ -129,6 +130,7 @@ class MainActivity : ComponentActivity() {
                                 SessionReviewScreen(
                                     fileName = s.file.name,
                                     analysis = loaded,
+                                    gearing = uiState.value.gearing,
                                     onBack = { screen = Screen.SessionsList },
                                 )
                             }

@@ -68,6 +68,9 @@ class TelemetryEngine(
     private var maxRpm = 0.0
     private val audioMonitor = EngineAudioMonitor(context) { rpm -> onRpm(rpm) }
 
+    private val gearingStore = GearingStore(context)
+    private var gearing = gearingStore.load()
+
     private val trackPoints = mutableListOf<GeoPoint>()
     private var trackSnapshot: List<GeoPoint> = emptyList()
 
@@ -94,6 +97,12 @@ class TelemetryEngine(
     /** Call after the mic permission is granted while the engine is already running. */
     fun startAudio() {
         audioMonitor.start()
+        pushState()
+    }
+
+    fun setGearing(newGearing: Gearing) {
+        gearingStore.save(newGearing)
+        gearing = gearingStore.load()
         pushState()
     }
 
@@ -214,6 +223,7 @@ class TelemetryEngine(
             gTotal = currentGTotal,
             lap = lapTracker.lapCount,
             rpm = currentRpm,
+            cvtRatio = gearing.cvtRatio(currentRpm, currentSpeedKmh),
         )
     }
 
@@ -278,6 +288,8 @@ class TelemetryEngine(
                 rpmAvailable = audioMonitor.isRunning,
                 rpm = currentRpm,
                 maxRpm = maxRpm,
+                gearing = gearing,
+                cvtRatio = gearing.cvtRatio(currentRpm, currentSpeedKmh),
                 currentLapMs = now - lapTracker.currentLapReference(sessionStartElapsedMs),
                 lastLapMs = lastLapMs,
                 bestLapMs = bestLapMs,

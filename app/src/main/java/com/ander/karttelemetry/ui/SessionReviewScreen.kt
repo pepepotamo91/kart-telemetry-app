@@ -26,7 +26,12 @@ import androidx.compose.ui.unit.sp
 import com.ander.karttelemetry.core.SessionAnalysis
 import com.ander.karttelemetry.ui.charts.ChartSeries
 import com.ander.karttelemetry.ui.charts.LineChart
-import com.ander.karttelemetry.ui.charts.RpmSpeedScatter
+import com.ander.karttelemetry.ui.charts.SpeedScatter
+import com.ander.karttelemetry.core.Gearing
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import java.util.Locale
 import kotlin.math.abs
 
@@ -34,6 +39,7 @@ import kotlin.math.abs
 fun SessionReviewScreen(
     fileName: String,
     analysis: SessionAnalysis,
+    gearing: Gearing,
     onBack: () -> Unit,
 ) {
     val totalDistanceM = analysis.points.lastOrNull()?.distanceM ?: 0.0
@@ -49,6 +55,13 @@ fun SessionReviewScreen(
         .map { it.first / it.second * 1000.0 }
         .sorted()
         .let { if (it.size >= 10) it[it.size / 2] else null }
+    // CVT ratio recomputed with the current gearing settings, so older sessions
+    // (or ones recorded before setting the sprockets) still get it right.
+    val cvtPoints = analysis.points.mapNotNull { p ->
+        gearing.cvtRatio(p.rpm, p.speedKmh)?.let { p.speedKmh.toFloat() to it.toFloat() }
+    }
+    val minCvt = cvtPoints.minOfOrNull { it.second }
+    var showCvt by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -123,14 +136,44 @@ fun SessionReviewScreen(
 
             if (rpmPoints.size >= 2) {
                 ChartPanel(
-                    title = "RPM vs VELOCIDAD" + (ratioKmhPer1000?.let { " · %.1f km/h por 1000 rpm".format(Locale.US, it) } ?: ""),
+                    title = if (showCvt) {
+                        "RELACIÓN CVT vs VELOCIDAD" + (minCvt?.let { " · mín %.2f:1".format(Locale.US, it) } ?: "")
+                    } else {
+                        "RPM vs VELOCIDAD" + (ratioKmhPer1000?.let { " · %.1f km/h por 1000 rpm".format(Locale.US, it) } ?: "")
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
-                    RpmSpeedScatter(
-                        points = rpmPoints,
-                        ratioKmhPer1000Rpm = ratioKmhPer1000,
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                    )
+                    Row {
+                        TextButton(onClick = { showCvt = false }) {
+                            Text("RPM", fontSize = 11.sp, color = if (!showCvt) Color.White else Color(0xFF777777))
+                        }
+                        TextButton(onClick = { showCvt = true }) {
+                            Text("CVT", fontSize = 11.sp, color = if (showCvt) Color.White else Color(0xFF777777))
+                        }
+                    }
+                    if (showCvt) {
+                        if (!gearing.configured) {
+                            Text(
+                                "Valores de piñón/plato/rueda por defecto: ajústalos en el dashboard (Ajustes).",
+                                color = Color(0xFFFFC400), fontSize = 10.sp,
+                            )
+                        }
+                        SpeedScatter(
+                            points = cvtPoints,
+                            yUnit = ":1",
+                            minYMax = 3f,
+                            yFormat = "%.1f",
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        )
+                    } else {
+                        SpeedScatter(
+                            points = rpmPoints,
+                            yUnit = "rpm",
+                            minYMax = 2000f,
+                            referenceLine = ratioKmhPer1000?.let { r -> { speed: Float -> (speed / r * 1000).toFloat() } },
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        )
+                    }
                 }
             }
         }

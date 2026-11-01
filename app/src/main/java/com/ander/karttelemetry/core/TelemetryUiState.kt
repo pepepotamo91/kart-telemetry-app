@@ -14,6 +14,8 @@ data class TelemetryUiState(
     val rpmAvailable: Boolean = false,
     val rpm: Double? = null,
     val maxRpm: Double = 0.0,
+    val gearing: Gearing = Gearing(),
+    val cvtRatio: Double? = null,
     val currentLapMs: Long = 0L,
     val lastLapMs: Long? = null,
     val bestLapMs: Long? = null,

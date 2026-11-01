@@ -16,18 +16,20 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 /**
- * RPM (Y) against speed (X). With a fixed gear ratio and the clutch engaged the
- * points fall on a straight line through the origin; [ratioKmhPer1000Rpm]
- * draws that line, and a flat cap at the top shows the governor / rev limit.
+ * Scatter of a value (Y) against speed (X), e.g. RPM or CVT ratio.
+ * [referenceLine] optionally draws y = f(speed) as a dashed line.
  */
 @Composable
-fun RpmSpeedScatter(
-    points: List<Pair<Float, Float>>, // (speed km/h, rpm)
-    ratioKmhPer1000Rpm: Double?,
+fun SpeedScatter(
+    points: List<Pair<Float, Float>>, // (speed km/h, value)
+    yUnit: String,
+    minYMax: Float,
+    yFormat: String = "%.0f",
+    referenceLine: ((Float) -> Float)? = null,
     modifier: Modifier = Modifier,
 ) {
     val maxSpeed = (points.maxOfOrNull { it.first } ?: 0f).coerceAtLeast(20f) * 1.08f
-    val maxRpm = (points.maxOfOrNull { it.second } ?: 0f).coerceAtLeast(2000f) * 1.08f
+    val maxY = (points.maxOfOrNull { it.second } ?: 0f).coerceAtLeast(minYMax) * 1.08f
 
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize().padding(start = 34.dp, bottom = 16.dp, top = 4.dp, end = 4.dp)) {
@@ -41,26 +43,32 @@ fun RpmSpeedScatter(
                 drawLine(grid, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
 
-            fun toScreen(speed: Float, rpm: Float) = Offset(speed / maxSpeed * w, h - rpm / maxRpm * h)
+            fun toScreen(speed: Float, value: Float) = Offset(speed / maxSpeed * w, h - value / maxY * h)
 
-            ratioKmhPer1000Rpm?.let { ratio ->
-                // speed = ratio · rpm / 1000 → end where it leaves the plot.
-                val rpmAtMaxSpeed = (maxSpeed / ratio * 1000).toFloat()
-                val end = if (rpmAtMaxSpeed <= maxRpm) toScreen(maxSpeed, rpmAtMaxSpeed)
-                else toScreen((ratio * maxRpm / 1000).toFloat(), maxRpm)
-                drawLine(
-                    Color(0xFFFFC400).copy(alpha = 0.7f), Offset(0f, h), end, strokeWidth = 2f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
-                )
+            referenceLine?.let { line ->
+                val steps = 40
+                var prev: Offset? = null
+                for (i in 0..steps) {
+                    val speed = maxSpeed * i / steps
+                    val value = line(speed)
+                    val p = if (value in 0f..maxY) toScreen(speed, value) else null
+                    if (p != null && prev != null) {
+                        drawLine(
+                            Color(0xFFFFC400).copy(alpha = 0.7f), prev, p, strokeWidth = 2f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
+                        )
+                    }
+                    prev = p
+                }
             }
 
             val dot = Color(0xFF4FC3F7).copy(alpha = 0.45f)
-            points.forEach { (speed, rpm) -> drawCircle(dot, radius = 3f, center = toScreen(speed, rpm)) }
+            points.forEach { (speed, value) -> drawCircle(dot, radius = 3f, center = toScreen(speed, value)) }
         }
 
         val label = Color(0xFF888888)
-        Text("%.0f".format(Locale.US, maxRpm), color = label, fontSize = 9.sp, modifier = Modifier.align(Alignment.TopStart))
-        Text("rpm", color = label, fontSize = 9.sp, modifier = Modifier.align(Alignment.CenterStart))
+        Text(yFormat.format(Locale.US, maxY), color = label, fontSize = 9.sp, modifier = Modifier.align(Alignment.TopStart))
+        Text(yUnit, color = label, fontSize = 9.sp, modifier = Modifier.align(Alignment.CenterStart))
         Text("0", color = label, fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomStart))
         Text(
             "%.0f km/h".format(Locale.US, maxSpeed),

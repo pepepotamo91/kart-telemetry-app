@@ -75,6 +75,24 @@ seguimiento para descartar saltos sueltos.
   estable. Al acelerar fuerte la lectura va unos 0,3 s por detrás.
 - Al ralentí y justo al arrancar puede tardar 1–2 s en engancharse.
 
+## Relación de la CVT
+
+En **Ajustes** se introducen los dientes del piñón (salida de la CVT), los del
+plato (eje trasero) y el diámetro de la rueda trasera. Con eso la app calcula
+en vivo la relación de la CVT:
+
+```
+rpm rueda   = velocidad GPS / (π · Ø rueda)
+rpm salida  = rpm rueda · plato / piñón
+CVT         = rpm motor / rpm salida
+```
+
+Solo se muestra por encima de 8 km/h y 1500 rpm (por debajo el embrague
+centrífugo puede patinar). Se graba en la columna `cvt_ratio` del CSV, y en la
+revisión de sesiones la gráfica "CVT" la recalcula con los ajustes actuales,
+indicando la relación mínima alcanzada: si la CVT llega a su mínimo antes del
+final de la recta, el desarrollo fijo se queda corto.
+
 ## Revisión de sesiones grabadas
 
 Botón "Sesiones" en la barra superior del dashboard, para verlo después de

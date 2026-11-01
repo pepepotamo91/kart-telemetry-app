@@ -17,7 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +39,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ander.karttelemetry.core.GeoPoint
+import com.ander.karttelemetry.core.Gearing
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.ander.karttelemetry.core.TelemetryUiState
 import java.util.Locale
 import kotlin.math.cos
@@ -51,7 +60,19 @@ fun DashboardScreen(
     onResetSession: () -> Unit,
     onOpenSessions: () -> Unit,
     onEnableRpm: () -> Unit,
+    onSaveGearing: (Gearing) -> Unit,
 ) {
+    var showSettings by remember { mutableStateOf(false) }
+    if (showSettings) {
+        GearingDialog(
+            current = state.gearing,
+            onDismiss = { showSettings = false },
+            onSave = {
+                onSaveGearing(it)
+                showSettings = false
+            },
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -64,6 +85,7 @@ fun DashboardScreen(
             onSetFinishLine = onSetFinishLine,
             onResetSession = onResetSession,
             onOpenSessions = onOpenSessions,
+            onOpenSettings = { showSettings = true },
         )
         Row(
             modifier = Modifier
@@ -86,6 +108,7 @@ private fun TopStatusBar(
     onSetFinishLine: () -> Unit,
     onResetSession: () -> Unit,
     onOpenSessions: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -130,6 +153,9 @@ private fun TopStatusBar(
         }
         TextButton(onClick = onOpenSessions) {
             Text("Sesiones", fontSize = 13.sp)
+        }
+        TextButton(onClick = onOpenSettings) {
+            Text("Ajustes", fontSize = 13.sp)
         }
     }
 }
@@ -179,6 +205,14 @@ private fun SpeedPanel(state: TelemetryUiState, onEnableRpm: () -> Unit, modifie
                 text = "MÁX %.0f rpm".format(Locale.US, state.maxRpm),
                 color = Color(0xFFFFC400),
                 fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "CVT " + (state.cvtRatio?.let { "%.2f:1".format(Locale.US, it) } ?: "--") +
+                    if (state.gearing.configured) "" else "  ⚠ Ajustes",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
             )
         } else {
             TextButton(onClick = onEnableRpm) {
@@ -389,4 +423,59 @@ private fun formatLapTime(ms: Long?): String {
     val seconds = (totalHundredths / 100) % 60
     val hundredths = totalHundredths % 100
     return "%02d:%02d.%02d".format(Locale.US, minutes, seconds, hundredths)
+}
+
+@Composable
+private fun GearingDialog(current: Gearing, onDismiss: () -> Unit, onSave: (Gearing) -> Unit) {
+    var pinion by remember { mutableStateOf(current.pinionTeeth.toString()) }
+    var sprocket by remember { mutableStateOf(current.sprocketTeeth.toString()) }
+    var tire by remember { mutableStateOf("%.0f".format(Locale.US, current.tireDiameterMm)) }
+
+    val p = pinion.toIntOrNull()?.takeIf { it in 5..40 }
+    val s = sprocket.toIntOrNull()?.takeIf { it in 10..120 }
+    val t = tire.replace(',', '.').toDoubleOrNull()?.takeIf { it in 150.0..500.0 }
+    val valid = p != null && s != null && t != null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Transmisión") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Para calcular la relación de la CVT a partir de las RPM y la velocidad GPS.",
+                    fontSize = 13.sp,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField("Piñón (dientes)", pinion, { pinion = it }, Modifier.weight(1f))
+                    NumberField("Plato (dientes)", sprocket, { sprocket = it }, Modifier.weight(1f))
+                    NumberField("Rueda trasera Ø (mm)", tire, { tire = it }, Modifier.weight(1f))
+                }
+                Text(
+                    if (p != null && s != null) "Relación final: %.2f:1".format(Locale.US, s.toDouble() / p)
+                    else "Valores no válidos",
+                    fontSize = 13.sp,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(Gearing(p!!, s!!, t!!, configured = true)) }, enabled = valid) {
+                Text("Guardar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+private fun NumberField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { v -> onChange(v.filter { it.isDigit() || it == '.' || it == ',' }.take(5)) },
+        label = { Text(label, fontSize = 11.sp) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = modifier,
+    )
 }
