@@ -52,9 +52,19 @@ class MainActivity : ComponentActivity() {
     private var screen by mutableStateOf<Screen>(Screen.Dashboard)
 
     private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            hasLocationPermission = results[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+            if (hasLocationPermission) {
+                startEngine()
+                engine?.startAudio()
+            }
+        }
+
+    private val requestMicLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            hasLocationPermission = granted
-            if (granted) startEngine()
+            if (granted) engine?.startAudio()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,6 +75,12 @@ class MainActivity : ComponentActivity() {
         hasLocationPermission = ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+
+        // Users upgrading from a version without RPM already granted location;
+        // ask once for the mic so the RPM reading works out of the box.
+        if (hasLocationPermission && savedInstanceState == null && !hasMicPermission()) {
+            requestMicLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
 
         setContent {
             KartTelemetryTheme {
@@ -77,6 +93,7 @@ class MainActivity : ComponentActivity() {
                             onManualLap = { engine?.manualLap() },
                             onResetSession = { engine?.resetSession() },
                             onOpenSessions = { screen = Screen.SessionsList },
+                            onEnableRpm = { requestMicLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                         )
 
                         Screen.SessionsList -> {
@@ -120,7 +137,9 @@ class MainActivity : ComponentActivity() {
                 } else {
                     PermissionRequestScreen(
                         onRequestPermission = {
-                            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            requestPermissionLauncher.launch(
+                                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.RECORD_AUDIO)
+                            )
                         }
                     )
                 }
@@ -143,6 +162,10 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
     }
+
+    private fun hasMicPermission() = ContextCompat.checkSelfPermission(
+        this, Manifest.permission.RECORD_AUDIO
+    ) == PackageManager.PERMISSION_GRANTED
 
     private fun startEngine() {
         if (engine != null) return

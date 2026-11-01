@@ -6,4 +6,5 @@ data class SessionSample(
     val gLateral: Double,
     val gLongitudinal: Double,
     val lap: Int,
+    val rpm: Double? = null,
 )

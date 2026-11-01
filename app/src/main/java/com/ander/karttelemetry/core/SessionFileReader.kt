@@ -13,7 +13,8 @@ object SessionFileReader {
     }
 
     // Column order matches SessionRecorder.writeSample:
-    // timestamp,elapsed_ms,lat,lon,accuracy_m,speed_kmh,g_lateral,g_longitudinal,g_total,lap
+    // timestamp,elapsed_ms,lat,lon,accuracy_m,speed_kmh,g_lateral,g_longitudinal,g_total,lap,rpm
+    // (rpm was added later; older files simply don't have it.)
     fun readSamples(file: File): List<SessionSample> {
         val samples = mutableListOf<SessionSample>()
         file.forEachLine { line ->
@@ -25,7 +26,8 @@ object SessionFileReader {
             val gLateral = cols[6].toDoubleOrNull() ?: return@forEachLine
             val gLongitudinal = cols[7].toDoubleOrNull() ?: return@forEachLine
             val lap = cols[9].toIntOrNull() ?: 0
-            samples.add(SessionSample(elapsedMs, speedKmh, gLateral, gLongitudinal, lap))
+            val rpm = cols.getOrNull(10)?.toDoubleOrNull()
+            samples.add(SessionSample(elapsedMs, speedKmh, gLateral, gLongitudinal, lap, rpm))
         }
         return samples
     }

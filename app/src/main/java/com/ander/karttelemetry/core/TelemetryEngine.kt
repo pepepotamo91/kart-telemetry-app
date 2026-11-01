@@ -64,6 +64,10 @@ class TelemetryEngine(
     private var lastLapMs: Long? = null
     private var bestLapMs: Long? = null
 
+    private var currentRpm: Double? = null
+    private var maxRpm = 0.0
+    private val audioMonitor = EngineAudioMonitor(context) { rpm -> onRpm(rpm) }
+
     private val trackPoints = mutableListOf<GeoPoint>()
     private var trackSnapshot: List<GeoPoint> = emptyList()
 
@@ -82,11 +86,19 @@ class TelemetryEngine(
             runCatching { locationManager.requestLocationUpdates(provider, 200L, 0f, this) }
         }
 
+        audioMonitor.start()
         sessionStartElapsedMs = SystemClock.elapsedRealtime()
         pushState()
     }
 
+    /** Call after the mic permission is granted while the engine is already running. */
+    fun startAudio() {
+        audioMonitor.start()
+        pushState()
+    }
+
     fun stop() {
+        audioMonitor.stop()
         sensorManager.unregisterListener(this)
         runCatching { locationManager.removeUpdates(this) }
         recorder?.close()
@@ -120,6 +132,7 @@ class TelemetryEngine(
         maxSpeedKmh = 0.0
         maxGLateral = 0.0
         maxGTotal = 0.0
+        maxRpm = 0.0
         lastLapMs = null
         bestLapMs = null
         lapTracker.reset()
@@ -133,6 +146,12 @@ class TelemetryEngine(
         lastLapMs = lapTimeMs
         val best = bestLapMs
         if (best == null || lapTimeMs < best) bestLapMs = lapTimeMs
+        pushState()
+    }
+
+    private fun onRpm(rpm: Double?) {
+        currentRpm = rpm
+        if (rpm != null && rpm > maxRpm) maxRpm = rpm
         pushState()
     }
 
@@ -194,6 +213,7 @@ class TelemetryEngine(
             gLong = currentGLongitudinal,
             gTotal = currentGTotal,
             lap = lapTracker.lapCount,
+            rpm = currentRpm,
         )
     }
 
@@ -255,6 +275,9 @@ class TelemetryEngine(
                 gTotal = currentGTotal,
                 maxGLateral = maxGLateral,
                 maxGTotal = min(maxGTotal, 9.99),
+                rpmAvailable = audioMonitor.isRunning,
+                rpm = currentRpm,
+                maxRpm = maxRpm,
                 currentLapMs = now - lapTracker.currentLapReference(sessionStartElapsedMs),
                 lastLapMs = lastLapMs,
                 bestLapMs = bestLapMs,

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.ander.karttelemetry.core.SessionAnalysis
 import com.ander.karttelemetry.ui.charts.ChartSeries
 import com.ander.karttelemetry.ui.charts.LineChart
+import com.ander.karttelemetry.ui.charts.RpmSpeedScatter
 import java.util.Locale
 import kotlin.math.abs
 
@@ -39,6 +40,15 @@ fun SessionReviewScreen(
     val maxSpeed = analysis.points.maxOfOrNull { it.speedKmh } ?: 0.0
     val maxGLateral = analysis.points.maxOfOrNull { abs(it.gLateral) } ?: 0.0
     val lapMarkers = analysis.lapEndDistancesM.map { it.toFloat() }
+    val rpmPoints = analysis.points.mapNotNull { p -> p.rpm?.let { p.speedKmh.toFloat() to it.toFloat() } }
+    val maxRpm = rpmPoints.maxOfOrNull { it.second } ?: 0f
+    // Gear ratio as km/h per 1000 rpm: median over samples clearly moving with
+    // the clutch engaged (below ~15 km/h a centrifugal clutch may still slip).
+    val ratioKmhPer1000 = rpmPoints
+        .filter { it.first > 15f && it.second > 1500f }
+        .map { it.first / it.second * 1000.0 }
+        .sorted()
+        .let { if (it.size >= 10) it[it.size / 2] else null }
 
     Column(
         modifier = Modifier
@@ -56,7 +66,7 @@ fun SessionReviewScreen(
             Text(
                 "%.0f m · %d vueltas · máx %.0f km/h".format(
                     Locale.US, totalDistanceM, lapMarkers.size, maxSpeed
-                ),
+                ) + if (maxRpm > 0f) " · máx %.0f rpm".format(Locale.US, maxRpm) else "",
                 color = Color(0xFFFFC400),
                 fontSize = 12.sp,
             )
@@ -109,6 +119,19 @@ fun SessionReviewScreen(
                     lapMarkersM = lapMarkers,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                 )
+            }
+
+            if (rpmPoints.size >= 2) {
+                ChartPanel(
+                    title = "RPM vs VELOCIDAD" + (ratioKmhPer1000?.let { " · %.1f km/h por 1000 rpm".format(Locale.US, it) } ?: ""),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    RpmSpeedScatter(
+                        points = rpmPoints,
+                        ratioKmhPer1000Rpm = ratioKmhPer1000,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
             }
         }
     }

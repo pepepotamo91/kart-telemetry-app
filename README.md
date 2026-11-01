@@ -55,6 +55,26 @@ máquina sí lo tendrá y debería compilar sin cambios.
   móvil (velocidad, G, posición, vuelta), para analizarla después en el
   ordenador.
 
+## RPM del motor por sonido
+
+Con permiso de micrófono, la app calcula las RPM a partir del sonido del motor
+(mismo método que el análisis acústico del Predator 200): en un monocilíndrico
+de 4 tiempos hay una explosión cada dos vueltas, así que el sonido es una
+familia de armónicos separados por la frecuencia de explosión f y
+`rpm = 120 · f`. Cada 0,1 s se prueba cada separación candidata (900–6000 rpm)
+con un "peine" que compara el nivel en los armónicos k·f con el nivel a mitad
+de camino (k+½)·f sobre el espectro blanqueado, con comprobación de octavas y
+seguimiento para descartar saltos sueltos.
+
+- Las RPM se muestran bajo la velocidad, con el máximo de la sesión, y se
+  graban en la columna `rpm` del CSV.
+- En la revisión de sesiones aparece la gráfica **RPM vs velocidad** con la
+  relación media en km/h por cada 1000 rpm: sirve para comprobar el desarrollo
+  y ver si el motor llega al corte del regulador en la recta.
+- Precisión medida sobre la grabación real del Predator: ±16 rpm en régimen
+  estable. Al acelerar fuerte la lectura va unos 0,3 s por detrás.
+- Al ralentí y justo al arrancar puede tardar 1–2 s en engancharse.
+
 ## Revisión de sesiones grabadas
 
 Botón "Sesiones" en la barra superior del dashboard, para verlo después de

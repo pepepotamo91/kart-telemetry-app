@@ -50,6 +50,7 @@ fun DashboardScreen(
     onManualLap: () -> Unit,
     onResetSession: () -> Unit,
     onOpenSessions: () -> Unit,
+    onEnableRpm: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -71,7 +72,7 @@ fun DashboardScreen(
                 .padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SpeedPanel(state, Modifier.weight(1f))
+            SpeedPanel(state, onEnableRpm, Modifier.weight(1f))
             GForcePanel(state, Modifier.weight(1f))
             LapPanel(state, onManualLap, Modifier.weight(1.3f))
         }
@@ -149,21 +150,41 @@ private fun PanelBox(modifier: Modifier = Modifier, content: @Composable ColumnS
 }
 
 @Composable
-private fun SpeedPanel(state: TelemetryUiState, modifier: Modifier = Modifier) {
+private fun SpeedPanel(state: TelemetryUiState, onEnableRpm: () -> Unit, modifier: Modifier = Modifier) {
     PanelBox(modifier) {
         Text(
             text = "%.0f".format(Locale.US, state.speedKmh),
             color = Color.White,
-            fontSize = 90.sp,
+            fontSize = 76.sp,
             fontWeight = FontWeight.Black,
         )
-        Text("km/h", color = Color(0xFF999999), fontSize = 16.sp)
-        Spacer(Modifier.height(12.dp))
+        Text("km/h", color = Color(0xFF999999), fontSize = 14.sp)
         Text(
             text = "MÁX %.0f km/h".format(Locale.US, state.maxSpeedKmh),
             color = Color(0xFFFFC400),
-            fontSize = 16.sp,
+            fontSize = 14.sp,
         )
+        Spacer(Modifier.height(10.dp))
+        if (state.rpmAvailable) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = state.rpm?.let { "%.0f".format(Locale.US, it) } ?: "----",
+                    color = Color(0xFF4FC3F7),
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(" rpm", color = Color(0xFF999999), fontSize = 14.sp, modifier = Modifier.padding(bottom = 6.dp))
+            }
+            Text(
+                text = "MÁX %.0f rpm".format(Locale.US, state.maxRpm),
+                color = Color(0xFFFFC400),
+                fontSize = 13.sp,
+            )
+        } else {
+            TextButton(onClick = onEnableRpm) {
+                Text("Activar RPM (micro)", fontSize = 13.sp, color = Color(0xFF4FC3F7))
+            }
+        }
     }
 }
 

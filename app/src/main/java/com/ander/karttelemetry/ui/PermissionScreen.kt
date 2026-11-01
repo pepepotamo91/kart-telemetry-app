@@ -28,7 +28,8 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Kart Telemetry necesita acceso a la ubicación para medir velocidad y vueltas por GPS.",
+            text = "Kart Telemetry necesita acceso a la ubicación para medir velocidad y vueltas por GPS.\n\n" +
+                "El micrófono es opcional: sirve para calcular las RPM del motor a partir de su sonido.",
             color = Color.White,
             fontSize = 18.sp,
             textAlign = TextAlign.Center,

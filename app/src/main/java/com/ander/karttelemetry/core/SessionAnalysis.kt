@@ -5,6 +5,7 @@ data class SessionPoint(
     val speedKmh: Double,
     val gLateral: Double,
     val gLongitudinal: Double,
+    val rpm: Double? = null,
 )
 
 data class SessionAnalysis(
@@ -25,14 +26,14 @@ fun analyzeSession(samples: List<SessionSample>): SessionAnalysis {
     val lapEnds = mutableListOf<Double>()
     var distanceM = 0.0
     var previous = samples[0]
-    points.add(SessionPoint(0.0, previous.speedKmh, previous.gLateral, previous.gLongitudinal))
+    points.add(SessionPoint(0.0, previous.speedKmh, previous.gLateral, previous.gLongitudinal, previous.rpm))
 
     for (i in 1 until samples.size) {
         val current = samples[i]
         val dtSeconds = (current.elapsedMs - previous.elapsedMs).coerceAtLeast(0L) / 1000.0
         val avgSpeedMs = (previous.speedKmh + current.speedKmh) / 2.0 / 3.6
         distanceM += avgSpeedMs * dtSeconds
-        points.add(SessionPoint(distanceM, current.speedKmh, current.gLateral, current.gLongitudinal))
+        points.add(SessionPoint(distanceM, current.speedKmh, current.gLateral, current.gLongitudinal, current.rpm))
         if (current.lap != previous.lap) lapEnds.add(distanceM)
         previous = current
     }
