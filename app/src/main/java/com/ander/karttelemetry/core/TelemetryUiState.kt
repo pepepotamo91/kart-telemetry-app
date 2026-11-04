@@ -11,6 +11,8 @@ data class TelemetryUiState(
     val gTotal: Double = 0.0,
     val maxGLateral: Double = 0.0,
     val maxGTotal: Double = 0.0,
+    /** False while longitudinal G still comes from GPS (accelerometer axis not yet fitted). */
+    val gCalibrated: Boolean = false,
     val rpmAvailable: Boolean = false,
     val rpm: Double? = null,
     val maxRpm: Double = 0.0,

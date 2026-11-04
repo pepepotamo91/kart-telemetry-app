@@ -93,6 +93,25 @@ revisión de sesiones la gráfica "CVT" la recalcula con los ajustes actuales,
 indicando la relación mínima alcanzada: si la CVT llega a su mínimo antes del
 final de la recta, el desarrollo fijo se queda corto.
 
+## Cómo se calculan las G
+
+- **Filtro anti-vibración**: el acelerómetro y el giroscopio se leen a la
+  máxima frecuencia (~200 Hz) y cada muestra pasa por un paso bajo de dos
+  polos (~1,5 Hz). Así la vibración del motor (30–70 Hz) no se cuela como
+  lecturas falsas.
+- **Sin brújula**: el bastidor de acero y el motor desvían el magnetómetro,
+  así que no se usa.
+- **Lateral = velocidad GPS × velocidad de giro (giroscopio)**. No necesita
+  calibración y da igual cómo esté montado el móvil.
+- **Longitudinal = acelerómetro a lo largo del eje de avance del kart**. La
+  app encuentra sola ese eje mientras conduces, comparando la aceleración
+  con los cambios de velocidad del GPS (tarda unas cuantas aceleraciones y
+  frenadas, ~30–60 s). Mientras tanto la longitudinal sale del GPS y el
+  dashboard lo indica con "calibrando eje". La calibración se guarda para la
+  siguiente sesión; si mueves el móvil más de 15° se recalibra.
+- El CSV añade `yaw_rate_dps` (giro en °/s) y `g_calibrated` (1 cuando la
+  longitudinal ya viene del acelerómetro).
+
 ## Revisión de sesiones grabadas
 
 Botón "Sesiones" en la barra superior del dashboard, para verlo después de

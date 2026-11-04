@@ -14,7 +14,7 @@ class SessionRecorder(val file: File) {
     private val timeFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US)
 
     init {
-        writer.write("timestamp,elapsed_ms,lat,lon,accuracy_m,speed_kmh,g_lateral,g_longitudinal,g_total,lap,rpm,cvt_ratio")
+        writer.write("timestamp,elapsed_ms,lat,lon,accuracy_m,speed_kmh,g_lateral,g_longitudinal,g_total,lap,rpm,cvt_ratio,yaw_rate_dps,g_calibrated")
         writer.newLine()
     }
 
@@ -30,6 +30,8 @@ class SessionRecorder(val file: File) {
         lap: Int,
         rpm: Double?,
         cvtRatio: Double?,
+        yawRateDps: Double,
+        gCalibrated: Boolean,
     ) {
         val row = listOf(
             timeFormat.format(Date()),
@@ -44,6 +46,8 @@ class SessionRecorder(val file: File) {
             lap.toString(),
             rpm?.let { "%.0f".format(Locale.US, it) } ?: "",
             cvtRatio?.let { "%.3f".format(Locale.US, it) } ?: "",
+            "%.1f".format(Locale.US, yawRateDps),
+            if (gCalibrated) "1" else "0",
         ).joinToString(",")
         writer.write(row)
         writer.newLine()

@@ -279,6 +279,13 @@ private fun GForcePanel(state: TelemetryUiState, modifier: Modifier = Modifier) 
                     color = Color(0xFFFFC400),
                     fontSize = 11.sp,
                 )
+                if (!state.gCalibrated) {
+                    Text(
+                        text = "Lon por GPS · calibrando eje",
+                        color = Color(0xFF999999),
+                        fontSize = 10.sp,
+                    )
+                }
             }
         }
     }

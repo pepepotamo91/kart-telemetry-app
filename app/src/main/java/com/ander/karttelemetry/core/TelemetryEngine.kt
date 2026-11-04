@@ -18,10 +18,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.min
-import kotlin.math.sin
 
 /**
  * Owns the sensor/location listeners and derives everything the dashboard shows.
@@ -36,12 +34,14 @@ class TelemetryEngine(
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
-    private val rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+    private val gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
     private val linearAccelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
-    private val gAvailable = rotationSensor != null && linearAccelSensor != null
+    private val gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private val gAvailable = gravitySensor != null && linearAccelSensor != null && gyroSensor != null
 
-    private val rotationMatrix = FloatArray(9)
-    private var haveRotation = false
+    private val calibrationStore = GCalibrationStore(context)
+    private var gEstimator = GForceEstimator(calibrationStore.load())
+    private var lastUiPushMs = 0L
 
     private val lapTracker = LapTracker()
     private var sessionStartElapsedMs = SystemClock.elapsedRealtime()
@@ -75,8 +75,11 @@ class TelemetryEngine(
     private var trackSnapshot: List<GeoPoint> = emptyList()
 
     fun start() {
-        rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
-        linearAccelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        // Fastest rate so the anti-alias filter sees the engine vibration
+        // instead of a few aliased snapshots of it.
+        gravitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        linearAccelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
+        gyroSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
 
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             == PackageManager.PERMISSION_GRANTED
@@ -109,6 +112,7 @@ class TelemetryEngine(
     fun stop() {
         audioMonitor.stop()
         sensorManager.unregisterListener(this)
+        gEstimator.calibration()?.let { calibrationStore.save(it) }
         runCatching { locationManager.removeUpdates(this) }
         recorder?.close()
         recorder = null
@@ -165,42 +169,31 @@ class TelemetryEngine(
     }
 
     override fun onSensorChanged(event: SensorEvent) {
+        val v = event.values
         when (event.sensor.type) {
-            Sensor.TYPE_ROTATION_VECTOR -> {
-                SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                haveRotation = true
-            }
+            Sensor.TYPE_GRAVITY ->
+                gEstimator.onGravity(v[0].toDouble(), v[1].toDouble(), v[2].toDouble(), event.timestamp)
+
+            Sensor.TYPE_GYROSCOPE ->
+                gEstimator.onGyro(v[0].toDouble(), v[1].toDouble(), v[2].toDouble(), event.timestamp)
 
             Sensor.TYPE_LINEAR_ACCELERATION -> {
-                if (haveRotation) {
-                    updateGForce(event.values[0], event.values[1], event.values[2])
-                    maybeRecordSample()
-                }
+                gEstimator.onLinearAccel(v[0].toDouble(), v[1].toDouble(), v[2].toDouble(), event.timestamp)
+                updateGForce()
+                maybeRecordSample()
             }
         }
-        pushState()
+        // Sensors arrive at up to 200 Hz; the screen only needs ~20 updates/s.
+        val nowMs = SystemClock.elapsedRealtime()
+        if (nowMs - lastUiPushMs >= 50L) {
+            lastUiPushMs = nowMs
+            pushState()
+        }
     }
 
-    private fun updateGForce(ax: Float, ay: Float, az: Float) {
-        // Rotate device-frame acceleration into the world frame (East, North) using
-        // the current orientation, so G readings stay correct regardless of how the
-        // phone is mounted on the kart.
-        val east = rotationMatrix[0] * ax + rotationMatrix[1] * ay + rotationMatrix[2] * az
-        val north = rotationMatrix[3] * ax + rotationMatrix[4] * ay + rotationMatrix[5] * az
-
-        val bearing = lastBearingDeg
-        if (bearing != null) {
-            val rad = Math.toRadians(bearing.toDouble())
-            val headingE = sin(rad)
-            val headingN = cos(rad)
-            currentGLongitudinal = (east * headingE + north * headingN) / SensorManager.GRAVITY_EARTH
-            currentGLateral = (east * headingN - north * headingE) / SensorManager.GRAVITY_EARTH
-        } else {
-            // No reliable heading yet (e.g. still in the pits): show horizontal
-            // magnitude only, nothing meaningful to split into lateral/longitudinal.
-            currentGLongitudinal = 0.0
-            currentGLateral = hypot(east.toDouble(), north.toDouble()) / SensorManager.GRAVITY_EARTH
-        }
+    private fun updateGForce() {
+        currentGLongitudinal = gEstimator.gLongitudinal
+        currentGLateral = gEstimator.gLateral
         currentGTotal = hypot(currentGLateral, currentGLongitudinal)
         if (abs(currentGLateral) > maxGLateral) maxGLateral = abs(currentGLateral)
         if (currentGTotal > maxGTotal) maxGTotal = currentGTotal
@@ -224,6 +217,8 @@ class TelemetryEngine(
             lap = lapTracker.lapCount,
             rpm = currentRpm,
             cvtRatio = gearing.cvtRatio(currentRpm, currentSpeedKmh),
+            yawRateDps = gEstimator.yawRateDps,
+            gCalibrated = gEstimator.isCalibrated,
         )
     }
 
@@ -232,6 +227,7 @@ class TelemetryEngine(
     override fun onLocationChanged(location: Location) {
         lastLocation = location
         if (location.hasSpeed()) {
+            gEstimator.onGpsFix(location.speed.toDouble(), location.elapsedRealtimeNanos)
             currentSpeedKmh = location.speed * 3.6
             if (currentSpeedKmh > maxSpeedKmh) maxSpeedKmh = currentSpeedKmh
         }
@@ -285,6 +281,7 @@ class TelemetryEngine(
                 gTotal = currentGTotal,
                 maxGLateral = maxGLateral,
                 maxGTotal = min(maxGTotal, 9.99),
+                gCalibrated = gEstimator.isCalibrated,
                 rpmAvailable = audioMonitor.isRunning,
                 rpm = currentRpm,
                 maxRpm = maxRpm,
