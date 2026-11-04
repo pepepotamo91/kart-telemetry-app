@@ -1,6 +1,7 @@
 package com.ander.karttelemetry
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.WindowManager
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -111,6 +113,7 @@ class MainActivity : ComponentActivity() {
                                 SessionsListScreen(
                                     sessions = loaded,
                                     onOpen = { file -> screen = Screen.SessionReview(file) },
+                                    onShare = { file -> shareSessionFile(file) },
                                     onBack = { screen = Screen.Dashboard },
                                 )
                             }
@@ -131,6 +134,7 @@ class MainActivity : ComponentActivity() {
                                     fileName = s.file.name,
                                     analysis = loaded,
                                     gearing = uiState.value.gearing,
+                                    onShare = { shareSessionFile(s.file) },
                                     onBack = { screen = Screen.SessionsList },
                                 )
                             }
@@ -174,6 +178,17 @@ class MainActivity : ComponentActivity() {
         engine = TelemetryEngine(applicationContext) { newState ->
             uiState.value = newState
         }.also { it.start() }
+    }
+
+    private fun shareSessionFile(file: File) {
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, file.name)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, "Compartir sesión"))
     }
 
     private fun hideSystemBars() {

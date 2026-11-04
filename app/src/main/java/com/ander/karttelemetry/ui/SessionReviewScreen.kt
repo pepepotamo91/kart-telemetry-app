@@ -40,6 +40,7 @@ fun SessionReviewScreen(
     fileName: String,
     analysis: SessionAnalysis,
     gearing: Gearing,
+    onShare: () -> Unit,
     onBack: () -> Unit,
 ) {
     val totalDistanceM = analysis.points.lastOrNull()?.distanceM ?: 0.0
@@ -75,6 +76,9 @@ fun SessionReviewScreen(
             }
             Spacer(Modifier.width(6.dp))
             Text(fileName, color = Color(0xFF999999), fontSize = 12.sp)
+            TextButton(onClick = onShare) {
+                Text("Compartir", color = Color(0xFFFFC400), fontSize = 12.sp)
+            }
             Spacer(Modifier.weight(1f))
             Text(
                 "%.0f m · %d vueltas · máx %.0f km/h".format(

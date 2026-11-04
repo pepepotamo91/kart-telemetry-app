@@ -33,6 +33,7 @@ import java.util.Locale
 fun SessionsListScreen(
     sessions: List<File>,
     onOpen: (File) -> Unit,
+    onShare: (File) -> Unit,
     onBack: () -> Unit,
 ) {
     Column(
@@ -58,14 +59,16 @@ fun SessionsListScreen(
             )
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(sessions) { file -> SessionRow(file, onClick = { onOpen(file) }) }
+                items(sessions) { file ->
+                    SessionRow(file, onClick = { onOpen(file) }, onShare = { onShare(file) })
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SessionRow(file: File, onClick: () -> Unit) {
+private fun SessionRow(file: File, onClick: () -> Unit, onShare: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -85,6 +88,9 @@ private fun SessionRow(file: File, onClick: () -> Unit) {
             color = Color(0xFF999999),
             fontSize = 12.sp,
         )
+        TextButton(onClick = onShare) {
+            Text("Compartir", color = Color(0xFFFFC400), fontSize = 12.sp)
+        }
     }
 }
 
