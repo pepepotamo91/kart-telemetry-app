@@ -78,8 +78,11 @@ class TelemetryEngine(
         // Fastest rate so the anti-alias filter sees the engine vibration
         // instead of a few aliased snapshots of it.
         gravitySensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
-        linearAccelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
-        gyroSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
+        // 200 Hz is the most Android 12+ allows without HIGH_SAMPLING_RATE_SENSORS;
+        // asking for SENSOR_DELAY_FASTEST without it crashes debuggable builds.
+        // runCatching: a sensor that refuses the rate must never stop the app.
+        linearAccelSensor?.let { registerSensor(it) }
+        gyroSensor?.let { registerSensor(it) }
 
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             == PackageManager.PERMISSION_GRANTED
@@ -95,6 +98,11 @@ class TelemetryEngine(
         audioMonitor.start()
         sessionStartElapsedMs = SystemClock.elapsedRealtime()
         pushState()
+    }
+
+    private fun registerSensor(sensor: Sensor) {
+        val ok = runCatching { sensorManager.registerListener(this, sensor, SENSOR_PERIOD_US) }.getOrDefault(false)
+        if (!ok) runCatching { sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME) }
     }
 
     /** Call after the mic permission is granted while the engine is already running. */
@@ -302,6 +310,7 @@ class TelemetryEngine(
     }
 
     private companion object {
+        const val SENSOR_PERIOD_US = 5_000 // 200 Hz
         const val MIN_TRACK_POINT_DISTANCE_M = 2f
         const val MAX_TRACK_POINTS = 4000
     }
